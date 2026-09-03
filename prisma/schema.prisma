@@ -1,0 +1,31 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Bảng thể loại
+model theloai {
+  id           String  @id @db.VarChar(8)
+  tentheloai   String  @unique @db.VarChar(50)
+  mota         String? @db.Text
+}
+
+// Bảng thương hiệu
+model thuonghieu {
+  id           String  @id @db.VarChar(8)
+  tenthuonghieu   String  @unique @db.VarChar(50)
+  logothuonghieu   String  @db.VarChar(50)
+  mota         String? @db.Text
+}
+
+//bảng nhà cung cấp
+model Nhacungcap {
+  id          String @id @db.VarChar(8)
+  tenncc      String @unique @db.VarChar(50)
+  sodienthoai String @db.VarChar(20)
+  diachi      String @db.VarChar(255)
+}
