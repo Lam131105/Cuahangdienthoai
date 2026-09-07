@@ -1,0 +1,182 @@
+const PhieuGiamGiaService = require("../services/phieugiamgia.service");
+const ApiError = require("../api-error");
+
+// ============================== 1. Tạo Phiếu Giảm Giá mới ==================================
+exports.create = async (req, res, next) => {
+  const {
+    tenphieu,
+    giatrigiam,
+    dongiatoithieu,
+    giamtoida,
+    loaigiamgia,
+    ngaybatdau,
+    ngayhethan,
+  } = req.body;
+
+  if (
+    !tenphieu ||
+    giatrigiam === undefined ||
+    dongiatoithieu === undefined ||
+    !ngaybatdau ||
+    !ngayhethan ||
+    !loaigiamgia
+  ) {
+    return next(
+      new ApiError(
+        400,
+        "Tên phiếu, giá trị giảm, đơn giá tối thiểu, loại giảm giá, ngày bắt đầu và ngày hết hạn không được để trống",
+      ),
+    );
+  }
+  if (loaigiamgia === "Phần trăm" && giamtoida === undefined) {
+    return next(
+      new ApiError(
+        400,
+        "Phiếu giảm theo phần trăm bắt buộc phải nhập vào giá trị giảm tối đa",
+      ),
+    );
+  }
+  if (new Date(ngaybatdau) >= new Date(ngayhethan)) {
+    return next(new ApiError(400, "Ngày bắt đầu phải nhỏ hơn ngày hết hạn"));
+  }
+
+  try {
+    const phieuGiamGiaService = new PhieuGiamGiaService();
+    const document = await phieuGiamGiaService.create(req.body);
+    return res.send({
+      message: "Tạo phiếu giảm giá thành công",
+      data: document,
+    });
+  } catch (error) {
+    return next(
+      new ApiError(500, "Đã xảy ra lỗi trong quá trình tạo phiếu giảm giá"),
+    );
+  }
+};
+
+// =================== 2. Lấy danh sách Phiếu Giảm Giá (Hỗ trợ lọc) =================
+exports.findAll = async (req, res, next) => {
+  try {
+    const phieuGiamGiaService = new PhieuGiamGiaService();
+
+    const filterData = {
+      id: req.query.id, // ?id=PGG0001
+      tenphieu: req.query.tenphieu, // ?tenphieu=Voucher
+      loaigiamgia: req.query.loaigiamgia, // ?loaigiamgia=Phần trăm
+    };
+
+    const documents = await phieuGiamGiaService.find(filterData);
+    return res.send(documents);
+  } catch (error) {
+    return next(
+      new ApiError(500, "Đã xảy ra lỗi khi lấy danh sách phiếu giảm giá"),
+    );
+  }
+};
+
+// =================== 3. Lấy phiếu giảm giá đang hoạt động =================
+exports.findActive = async (req, res, next) => {
+  try {
+    const phieuGiamGiaService = new PhieuGiamGiaService();
+    const documents = await phieuGiamGiaService.findActive();
+    return res.send(documents);
+  } catch (error) {
+    return next(
+      new ApiError(
+        500,
+        "Đã xảy ra lỗi khi lấy danh sách phiếu giảm giá đang hoạt động",
+      ),
+    );
+  }
+};
+
+// ============================== 4. Cập nhật Phiếu Giảm Giá ==================================
+exports.update = async (req, res, next) => {
+  if (Object.keys(req.body).length === 0) {
+    return next(new ApiError(400, "Dữ liệu cập nhật không được để trống"));
+  }
+
+  const { ngaybatdau, ngayhethan } = req.body;
+  if (
+    ngaybatdau &&
+    ngayhethan &&
+    new Date(ngaybatdau) >= new Date(ngayhethan)
+  ) {
+    return next(new ApiError(400, "Ngày bắt đầu phải nhỏ hơn ngày hết hạn"));
+  }
+
+  try {
+    const phieuGiamGiaService = new PhieuGiamGiaService();
+    const document = await phieuGiamGiaService.update(req.params.id, req.body);
+    if (!document) {
+      return next(
+        new ApiError(404, "Không tìm thấy phiếu giảm giá cần cập nhật"),
+      );
+    }
+    return res.send({
+      message: "Cập nhật phiếu giảm giá thành công",
+      document,
+    });
+  } catch (error) {
+    return next(
+      new ApiError(
+        500,
+        `Lỗi khi cập nhật phiếu giảm giá với mã = ${req.params.id}`,
+      ),
+    );
+  }
+};
+
+// ============================== 5. Xóa một Phiếu Giảm Giá ==================================
+exports.delete = async (req, res, next) => {
+  try {
+    const phieuGiamGiaService = new PhieuGiamGiaService();
+    const document = await phieuGiamGiaService.delete(req.params.id);
+    if (!document) {
+      return next(new ApiError(404, "Không tìm thấy phiếu giảm giá cần xóa"));
+    }
+    return res.send({ message: "Đã xóa phiếu giảm giá thành công" });
+  } catch (error) {
+    return next(
+      new ApiError(
+        400,
+        error.message ||
+          `Không thể xóa phiếu giảm giá với mã = ${req.params.id}`,
+      ),
+    );
+  }
+};
+
+// ============================== 6. Xóa tất cả Phiếu Giảm Giá ==================================
+exports.deleteAll = async (req, res, next) => {
+  try {
+    const phieuGiamGiaService = new PhieuGiamGiaService();
+    const deletedCount = await phieuGiamGiaService.deleteAll();
+    return res.send({
+      message: `Đã xóa thành công ${deletedCount} phiếu giảm giá khỏi hệ thống`,
+    });
+  } catch (error) {
+    return next(
+      new ApiError(400, "Đã xảy ra lỗi khi xóa toàn bộ phiếu giảm giá"),
+    );
+  }
+};
+
+// ============================== 7. Tìm chi tiết một Phiếu Giảm Giá ==================================
+exports.findOne = async (req, res, next) => {
+  try {
+    const phieuGiamGiaService = new PhieuGiamGiaService();
+    const document = await phieuGiamGiaService.findById(req.params.id);
+    if (!document) {
+      return next(new ApiError(404, "Không tìm thấy phiếu giảm giá"));
+    }
+    return res.send(document);
+  } catch (error) {
+    return next(
+      new ApiError(
+        500,
+        `Lỗi khi truy vấn phiếu giảm giá với mã = ${req.params.id}`,
+      ),
+    );
+  }
+};

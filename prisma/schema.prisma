@@ -8,18 +8,22 @@ datasource db {
 }
 
 // Bảng thể loại
-model theloai {
+model Theloai {
   id           String  @id @db.VarChar(8)
   tentheloai   String  @unique @db.VarChar(50)
   mota         String? @db.Text
+  // Quan hệ 1-N tới bảng sản phẩm
+  danhsach_sanpham Sanpham[]
 }
 
 // Bảng thương hiệu
-model thuonghieu {
+model Thuonghieu {
   id           String  @id @db.VarChar(8)
   tenthuonghieu   String  @unique @db.VarChar(50)
   logothuonghieu   String  @db.VarChar(50)
   mota         String? @db.Text
+  // Quan hệ 1-N tới bảng sản phẩm
+  danhsach_sanpham Sanpham[]
 }
 
 //bảng nhà cung cấp
@@ -28,4 +32,297 @@ model Nhacungcap {
   tenncc      String @unique @db.VarChar(50)
   sodienthoai String @db.VarChar(20)
   diachi      String @db.VarChar(255)
+  // Quan hệ 1-n: 1 Nhân viên tạo nhiều Phiếu nhập
+  danhsach_phieunhap Phieunhap[]
+}
+
+//bảng vai trò
+model Vaitro {
+  id        String @id @db.VarChar(8)
+  tenvaitro String @unique @db.VarChar(30)
+    // Quan hệ 1-N tới bảng Nhanvien
+  danhsach_nhanvien Nhanvien[]
+}
+
+
+//bảng địa chỉ
+model Diachi {
+ id             String    @id @db.VarChar(8)
+ tennguoinhan  String    @db.VarChar(50)
+ sdtnguoinhan  String    @db.VarChar(20)
+ diachichitiet String    @db.VarChar(255)
+lamacdinh     Boolean   @default(false)
+
+
+ makhachhang    String    @db.VarChar(8)
+ khachhang      Khachhang @relation(fields: [makhachhang], references: [id], onDelete: Cascade)
+}
+
+
+model Khachhang {
+  id              String    @id @db.VarChar(8)
+  hoten           String    @db.VarChar(50)
+  email           String    @unique @db.VarChar(50)
+  matkhau         String    @db.VarChar(255)
+  sodienthoai     String?   @db.VarChar(20)
+  ngaysinh        DateTime? @db.Date
+  trangthai       String?   @db.VarChar(30)
+
+  // Quan hệ 1-N tới bảng Diachi
+  danhsach_diachi Diachi[]
+  // Quan hệ 1-n: Khách hàng nhận danh sách thông báo
+  danhsach_thongbao Thongbao[]
+  // Quan hệ 1-n: Sản phẩm có danh sách đánh giá
+  danhsach_danhgia Danhgia[]
+  // Quan hệ 1-n: Sản phẩm có danh sách yêu thích
+  danhsach_yeuthich Yeuthich[]
+  // Quan hệ 1-n với Vivoucher
+  danhsach_vivoucher    Vivoucher[]
+
+}
+
+
+model Nhanvien {
+  id          String    @id @db.VarChar(8)
+  hoten       String    @db.VarChar(50)
+  matkhau     String    @db.VarChar(255)
+  email       String    @unique @db.VarChar(50)
+  sodienthoai String    @db.VarChar(20)
+  ngaysinh    DateTime? @db.Date
+  trangthai       String?   @db.VarChar(30)
+
+  
+  // Khóa ngoại liên kết tới bảng Vaitro
+  vaitroid    String    @db.VarChar(8)
+  vaitro      Vaitro    @relation(fields: [vaitroid], references: [id], onDelete: Cascade)
+
+  // Quan hệ 1-n: 1 Nhân viên tạo nhiều Phiếu nhập
+  danhsach_phieunhap Phieunhap[]
+}
+
+
+
+model Sanpham {
+  id            String      @id @db.VarChar(8)
+  tensanpham    String      @db.VarChar(50)
+  mota          String?     @db.VarChar(128)
+  trangthai     Boolean     @default(true)
+
+  // Khóa ngoại liên kết Thương hiệu
+  mathuonghieu  String      @db.VarChar(8)
+  thuonghieu    Thuonghieu  @relation(fields: [mathuonghieu], references: [id])
+
+  // Khóa ngoại liên kết Thể loại
+  matheloai     String      @db.VarChar(8)
+  theloai       Theloai     @relation(fields: [matheloai], references: [id])
+  danhsach_anh  Anhsanpham[]
+     // Quan hệ 1-N tới bảng Bien the
+  danhsach_bienthe  Bienthe[]
+  // Quan hệ 1-n: Sản phẩm có danh sách đánh giá
+  danhsach_danhgia Danhgia[]
+  // Quan hệ 1-n: Sản phẩm có danh sách yêu thích
+  danhsach_yeuthich Yeuthich[]
+
+  thongsokythuat  Thongsokythuat?
+
+}
+
+model Anhsanpham {
+  id           String   @id @db.VarChar(8)
+  duongdananh  String   @db.VarChar(128)
+  laanhchinh   Boolean  @default(false)
+
+  // Khóa ngoại liên kết tới SanPham
+  masanpham    String   @db.VarChar(8)
+  sanpham      Sanpham  @relation(fields: [masanpham], references: [id], onDelete: Cascade)
+}
+
+model Ram {
+  id            String   @id @db.VarChar(8)
+  dungluongram  String   @db.VarChar(20)
+   // Quan hệ 1-N tới bảng Bien the
+  danhsach_bienthe  Bienthe[]
+}
+
+model Rom {
+  id            String   @id @db.VarChar(8)
+  dungluongrom  String   @db.VarChar(20)
+   // Quan hệ 1-N tới bảng Bien the
+  danhsach_bienthe  Bienthe[]
+}
+
+model Mausac {
+  id            String   @id @db.VarChar(8)
+  tenmau  String   @db.VarChar(30)
+   // Quan hệ 1-N tới bảng Bien the
+  danhsach_bienthe  Bienthe[]
+}
+
+model Bienthe {
+  id           String   @id @db.VarChar(8)
+  gia          Decimal  @db.Decimal(10, 2)
+  soluong      Int      @default(0)
+  duongdananh  String?  @db.VarChar(128)
+
+  // Khóa ngoại 1: Liên kết Sản phẩm
+  masanpham    String   @db.VarChar(8)
+  sanpham      Sanpham  @relation(fields: [masanpham], references: [id], onDelete: Cascade)
+
+  // Khóa ngoại 2: Liên kết RAM
+  maram        String   @db.VarChar(8)
+  ram          Ram      @relation(fields: [maram], references: [id])
+
+  // Khóa ngoại 3: Liên kết ROM
+  marom        String   @db.VarChar(8)
+  rom          Rom      @relation(fields: [marom], references: [id])
+
+  // Khóa ngoại 4: Liên kết Màu sắc
+  mamausac     String   @db.VarChar(8)
+  mausac       Mausac   @relation(fields: [mamausac], references: [id])
+  // Quan hệ 1-n tới Chi tiết đợt khuyến mãi
+  danhsach_chitietkhuyenmai Chitietdotkhuyenmai[]
+
+  // Ràng buộc bộ 4 thuộc tính này không được trùng lặp
+  @@unique([masanpham, maram, marom, mamausac])
+}
+
+
+model Thongsokythuat {
+  id                String  @id @db.VarChar(8)
+  kichthuocmanhinh  String? @db.VarChar(30)
+  congnghemanhinh   String? @db.VarChar(30)
+  chipset           String? @db.VarChar(30)
+  camerasau         String? @db.VarChar(30)
+  cameratruoc       String? @db.VarChar(30)
+  dungluongpin      String? @db.VarChar(30)
+  congnghesac       String? @db.VarChar(30)
+
+  // Khóa ngoại 1-1 liên kết tới SanPham
+  masanpham         String  @unique @db.VarChar(8)
+  sanpham           Sanpham @relation(fields: [masanpham], references: [id], onDelete: Cascade)
+}
+
+model Thongbao {
+  id            String    @id @db.VarChar(8)
+  tieude        String    @db.VarChar(50)
+  noidung       String    @db.Text
+  loaithongbao  String?   @db.VarChar(30)
+  duongdan      String?   @db.VarChar(128)
+  ngay          DateTime  @default(now())
+
+  // Khóa ngoại liên kết đến Khachhang
+  makhachhang   String    @db.VarChar(8)
+  khachhang     Khachhang @relation(fields: [makhachhang], references: [id], onDelete: Cascade)
+}
+
+model Dotkhuyenmai {
+  id           String   @id @db.VarChar(8)
+  tendot       String   @db.VarChar(50)
+  ngaybatdau   DateTime
+  ngayketthuc  DateTime
+  loaigiamgia  String  @db.VarChar(30)
+  giatrigiam   Decimal  @db.Decimal(10, 2)
+  // Quan hệ 1-n tới Chi tiết đợt khuyến mãi
+  danhsach_chitietkhuyenmai Chitietdotkhuyenmai[]
+}
+
+
+model Chitietdotkhuyenmai {
+  id              String       @id @db.VarChar(8)
+
+  // Khóa ngoại liên kết tới Đợt Khuyến Mãi
+  madotkhuyenmai  String       @db.VarChar(8)
+  dotkhuyenmai    Dotkhuyenmai @relation(fields: [madotkhuyenmai], references: [id], onDelete: Cascade)
+
+  // Khóa ngoại liên kết tới Biến Thể Sản Phẩm
+  mabienthe       String       @db.VarChar(8)
+  bienthe         Bienthe      @relation(fields: [mabienthe], references: [id], onDelete: Cascade)
+
+  // Đảm bảo trong 1 đợt khuyến mãi không thể thêm trùng 1 biến thể nhiều lần
+  @@unique([madotkhuyenmai, mabienthe])
+}
+
+model Danhgia {
+  id           String    @id @db.VarChar(8)
+  sosao        Int
+  noidung      String    @db.Text
+  ngaydanhgia  DateTime  @default(now())
+
+  // Khóa ngoại liên kết tới SanPham
+  masanpham    String    @db.VarChar(8)
+  sanpham      Sanpham   @relation(fields: [masanpham], references: [id], onDelete: Cascade)
+
+  // Khóa ngoại liên kết tới KhachHang
+  makhachhang  String    @db.VarChar(8)
+  khachhang    Khachhang @relation(fields: [makhachhang], references: [id], onDelete: Cascade)
+   @@unique([masanpham, makhachhang])
+}
+
+model Yeuthich {
+  id           String    @id @db.VarChar(8)
+  
+
+  // Khóa ngoại liên kết tới SanPham
+  masanpham    String    @db.VarChar(8)
+  sanpham      Sanpham   @relation(fields: [masanpham], references: [id], onDelete: Cascade)
+
+  // Khóa ngoại liên kết tới KhachHang
+  makhachhang  String    @db.VarChar(8)
+  khachhang    Khachhang @relation(fields: [makhachhang], references: [id], onDelete: Cascade)
+   @@unique([masanpham, makhachhang])
+}
+
+
+model Phieugiamgia {
+  id              String   @id @db.VarChar(8)
+  tenphieu        String   @db.VarChar(30)
+  giatrigiam     Decimal  @db.Decimal(10, 2)
+  dongiatoithieu  Decimal  @db.Decimal(10, 2)
+  giamtoida  Decimal?  @db.Decimal(10, 2)
+  ngaybatdau      DateTime
+  ngayhethan      DateTime
+  loaigiamgia     String  @db.VarChar(128)
+// Quan hệ 1-n: Phiếu giảm giá có danh sách điều kiện nhận
+  danhsach_dieukien     Dieukiennhanvoucher[]
+  // Quan hệ 1-n với Vivoucher
+  danhsach_vivoucher    Vivoucher[]
+}
+
+model Dieukiennhanvoucher {
+  id              String       @id @db.VarChar(128)
+  mocchitoithieu  Decimal      @db.Decimal(10, 2)
+  soluongnhan     Int
+
+  // Khóa ngoại liên kết tới Phiếu Giảm Giá
+  maphieugiamgia  String       @db.VarChar(8)
+  phieugiamgia    Phieugiamgia @relation(fields: [maphieugiamgia], references: [id], onDelete: Cascade)
+}
+
+
+model Vivoucher {
+  id             String       @id @db.VarChar(8)
+  trangthai      String       @default("Chưa dùng") @db.VarChar(30)
+
+  // Khóa ngoại liên kết tới Khách Hàng
+  makhachhang    String       @db.VarChar(8)
+  khachhang      Khachhang    @relation(fields: [makhachhang], references: [id], onDelete: Cascade)
+
+  // Khóa ngoại liên kết tới Phiếu Giảm Giá
+  maphieugiamgia String       @db.VarChar(8)
+  phieugiamgia   Phieugiamgia @relation(fields: [maphieugiamgia], references: [id], onDelete: Cascade)
+}
+
+
+model Phieunhap {
+  id            String     @id @db.VarChar(8)
+  ngaynhap      DateTime   @default(now())
+  tongtien      Decimal    @default(0) @db.Decimal(10, 2)
+
+  // Khóa ngoại liên kết tới Nhà Cung Cấp
+  manhacungcap  String     @db.VarChar(8)
+  nhacungcap    Nhacungcap @relation(fields: [manhacungcap], references: [id], onDelete: Restrict)
+
+  // Khóa ngoại liên kết tới Nhân Viên tạo phiếu
+  manhanvien    String     @db.VarChar(8)
+  nhanvien      Nhanvien   @relation(fields: [manhanvien], references: [id], onDelete: Restrict)
 }
