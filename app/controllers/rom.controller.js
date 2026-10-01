@@ -15,6 +15,11 @@ exports.create = async (req, res, next) => {
       data: document,
     });
   } catch (error) {
+    if (error.code === "P2002") {
+      return next(
+        new ApiError(400, "Đã tồn tại dung lượng Rom này trong cơ sở dữ liệu!"),
+      );
+    }
     return next(
       new ApiError(500, "Đã xảy ra lỗi trong quá trình tạo dung lượng ROM"),
     );
@@ -57,6 +62,11 @@ exports.update = async (req, res, next) => {
       document,
     });
   } catch (error) {
+    if (error.code === "P2002") {
+      return next(
+        new ApiError(400, "Đã tồn tại dung lượng Rom này trong cơ sở dữ liệu!"),
+      );
+    }
     return next(
       new ApiError(500, `Lỗi khi cập nhật ROM với mã = ${req.params.id}`),
     );
@@ -73,6 +83,14 @@ exports.delete = async (req, res, next) => {
     }
     return res.send({ message: "Đã xóa dung lượng ROM thành công" });
   } catch (error) {
+    if (error.code === "P2003") {
+      return next(
+        new ApiError(
+          400,
+          "Không thể xóa dung lượng Rom này vì đang có Sản phẩm thuộc dung lượng Rom này!",
+        ),
+      );
+    }
     return next(
       new ApiError(
         400,
@@ -91,6 +109,14 @@ exports.deleteAll = async (req, res, next) => {
       message: `Đã xóa thành công ${deletedCount} loại ROM khỏi hệ thống`,
     });
   } catch (error) {
+    if (error.code === "P2003") {
+      return next(
+        new ApiError(
+          400,
+          "Không thể xóa tất cả dung lượng Rom này vì đang có Sản phẩm thuộc dung lượng Rom này!",
+        ),
+      );
+    }
     return next(new ApiError(400, "Đã xảy ra lỗi khi xóa toàn bộ dữ liệu ROM"));
   }
 };

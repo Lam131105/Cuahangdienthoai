@@ -78,6 +78,14 @@ exports.delete = async (req, res, next) => {
     }
     return res.send({ message: "Đã xóa Danh mục thành công" });
   } catch (error) {
+    if (error.code === "P2003") {
+      return next(
+        new ApiError(
+          400,
+          `Không thể xóa danh mục ${req.params.id} vì đang có sản phẩm thuộc danh mục này!`,
+        ),
+      );
+    }
     return next(
       new ApiError(
         400,
@@ -96,6 +104,14 @@ exports.deleteAll = async (req, res, next) => {
       message: `Đã xóa sạch thành công ${deletedCount} Danh mục khỏi hệ thống`,
     });
   } catch (error) {
+    if (error.code === "P2003") {
+      return next(
+        new ApiError(
+          400,
+          `Không thể xóa tất cả danh mục vì đang có sản phẩm thuộc danh mục này!`,
+        ),
+      );
+    }
     return next(
       new ApiError(
         400,

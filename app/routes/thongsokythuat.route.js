@@ -10,10 +10,7 @@ router
   .delete(thongSoKyThuat.deleteAll);
 
 // Route lấy/cập nhật thông số kỹ thuật theo Mã Sản Phẩm
-router
-  .route("/sanpham/:masanpham")
-  .get(thongSoKyThuat.findBySanPham)
-  .put(thongSoKyThuat.updateBySanPham);
+router.route("/sanpham/:masanpham").get(thongSoKyThuat.findBySanPham);
 
 router
   .route("/:id")

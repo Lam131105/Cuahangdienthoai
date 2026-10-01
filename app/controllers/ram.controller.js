@@ -15,6 +15,11 @@ exports.create = async (req, res, next) => {
       data: document,
     });
   } catch (error) {
+    if (error.code === "P2002") {
+      return next(
+        new ApiError(400, "Đã tồn tại dung lượng Ram này trong cơ sở dữ liệu!"),
+      );
+    }
     return next(
       new ApiError(500, "Đã xảy ra lỗi trong quá trình tạo dung lượng RAM"),
     );
@@ -57,6 +62,9 @@ exports.update = async (req, res, next) => {
       document,
     });
   } catch (error) {
+    if (error.code === "P2002") {
+      return next(new ApiError(400, "Đã tồn tại Ram này trong cơ sở dữ liệu!"));
+    }
     return next(
       new ApiError(500, `Lỗi khi cập nhật RAM với mã = ${req.params.id}`),
     );
@@ -73,6 +81,14 @@ exports.delete = async (req, res, next) => {
     }
     return res.send({ message: "Đã xóa dung lượng RAM thành công" });
   } catch (error) {
+    if (error.code === "P2003") {
+      return next(
+        new ApiError(
+          400,
+          `Không thể xóa dung lượng Ram ${req.params.id} vì đang có Sản phẩm thuộc dung lượng Ram này!`,
+        ),
+      );
+    }
     return next(
       new ApiError(
         400,
@@ -91,6 +107,14 @@ exports.deleteAll = async (req, res, next) => {
       message: `Đã xóa thành công ${deletedCount} loại RAM khỏi hệ thống`,
     });
   } catch (error) {
+    if (error.code === "P2003") {
+      return next(
+        new ApiError(
+          400,
+          "Không thể xóa tất cả dung lượng Ram vì đang có Sản phẩm thuộc các dung lượng Ram này!",
+        ),
+      );
+    }
     return next(new ApiError(400, "Đã xảy ra lỗi khi xóa toàn bộ dữ liệu RAM"));
   }
 };

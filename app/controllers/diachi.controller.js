@@ -7,6 +7,12 @@ exports.create = async (req, res, next) => {
     !req.body?.tennguoinhan ||
     !req.body?.sdtnguoinhan ||
     !req.body?.diachichitiet ||
+    !req.body?.tinhthanhid ||
+    !req.body?.tentinhthanh ||
+    !req.body?.quanhuyenid ||
+    !req.body?.tenquanhuyen ||
+    !req.body?.phuongxaid ||
+    !req.body?.tenphuongxa ||
     !req.body?.makhachhang
   ) {
     return next(
@@ -69,6 +75,7 @@ exports.update = async (req, res, next) => {
     }
     return res.send({ message: "Cập nhật Địa chỉ thành công", document });
   } catch (error) {
+    console.error("Lỗi khi thêm danh sách chi tiết đơn hàng:", error);
     return next(
       new ApiError(500, `Lỗi khi cập nhật Địa chỉ với mã = ${req.params.id}`),
     );

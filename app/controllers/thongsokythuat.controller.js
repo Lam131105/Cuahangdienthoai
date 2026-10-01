@@ -115,37 +115,6 @@ exports.update = async (req, res, next) => {
   }
 };
 
-// ============================== 5. Cập nhật Thông Số Kỹ Thuật theo Mã Sản Phẩm ==================================
-exports.updateBySanPham = async (req, res, next) => {
-  if (Object.keys(req.body).length === 0) {
-    return next(new ApiError(400, "Dữ liệu cập nhật không được để trống"));
-  }
-
-  try {
-    const thongSoKyThuatService = new ThongSoKyThuatService();
-    const document = await thongSoKyThuatService.updateBySanPham(
-      req.params.masanpham,
-      req.body,
-    );
-    if (!document) {
-      return next(
-        new ApiError(404, "Không tìm thấy thông số kỹ thuật của sản phẩm này"),
-      );
-    }
-    return res.send({
-      message: "Cập nhật thông số kỹ thuật cho sản phẩm thành công",
-      document,
-    });
-  } catch (error) {
-    return next(
-      new ApiError(
-        500,
-        `Lỗi khi cập nhật thông số kỹ thuật cho sản phẩm mã = ${req.params.masanpham}`,
-      ),
-    );
-  }
-};
-
 // ============================== 6. Xóa một bản ghi Thông Số Kỹ Thuật ==================================
 exports.delete = async (req, res, next) => {
   try {

@@ -121,30 +121,13 @@ class ThongSoKyThuatService {
   }
 
   // 4. Cập nhật theo ID
-  async update(id, payload) {
+  async update(id, payload, client = prisma) {
     const updateData = this.extractThongSoData(payload);
     delete updateData.id;
 
     try {
-      return await prisma.thongsokythuat.update({
+      return await client.thongsokythuat.update({
         where: { id: id },
-        data: updateData,
-      });
-    } catch (error) {
-      if (error.code === "P2025") return null;
-      throw error;
-    }
-  }
-
-  // 5. Cập nhật theo Mã Sản Phẩm
-  async updateBySanPham(masanpham, payload) {
-    const updateData = this.extractThongSoData(payload);
-    delete updateData.id;
-    delete updateData.masanpham;
-
-    try {
-      return await prisma.thongsokythuat.update({
-        where: { masanpham: masanpham },
         data: updateData,
       });
     } catch (error) {

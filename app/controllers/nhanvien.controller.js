@@ -67,13 +67,18 @@ exports.findAll = async (req, res, next) => {
 
 // ============================== 4. Cập nhật thông tin Nhân Viên ==================================
 exports.update = async (req, res, next) => {
-  if (Object.keys(req.body).length === 0) {
+  if (Object.keys(req.body).length === 0 && !req.file) {
     return next(new ApiError(400, "Dữ liệu cập nhật không được để trống"));
   }
 
   try {
+    const updateData = { ...req.body };
+    if (req.file) {
+      // 🟢 Gán tên file vào thuộc tính duongdananh của Database
+      updateData.duongdananh = `/uploads/khachhang/${req.file.filename}`;
+    }
     const nhanVienService = new NhanVienService();
-    const document = await nhanVienService.update(req.params.id, req.body);
+    const document = await nhanVienService.update(req.params.id, updateData);
     if (!document) {
       return next(new ApiError(404, "Không tìm thấy Nhân viên cần cập nhật"));
     }
@@ -106,6 +111,14 @@ exports.delete = async (req, res, next) => {
     }
     return res.send({ message: "Đã xóa Nhân viên thành công" });
   } catch (error) {
+    if (error.code === "P2003") {
+      return next(
+        new ApiError(
+          400,
+          `Không thể xóa Nhân viên ${req.params.id} vì nhân viên này đã duyệt đơn hàng trước đây!`,
+        ),
+      );
+    }
     return next(
       new ApiError(
         400,
@@ -124,6 +137,14 @@ exports.deleteAll = async (req, res, next) => {
       message: `Đã xóa sạch thành công ${deletedCount} Nhân viên khỏi hệ thống`,
     });
   } catch (error) {
+    if (error.code === "P2003") {
+      return next(
+        new ApiError(
+          400,
+          "Không thể xóa các Nhân viên này vì nhân viên này đã duyệt đơn hàng trước đây!",
+        ),
+      );
+    }
     return next(
       new ApiError(
         400,

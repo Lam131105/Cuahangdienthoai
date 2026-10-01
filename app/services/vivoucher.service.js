@@ -1,6 +1,10 @@
 const prisma = require("../../prisma/prisma.js");
+const ThongBaoService = require("./thongbao.service");
 
 class ViVoucherService {
+  constructor() {
+    this.thongBaoService = new ThongBaoService();
+  }
   extractData(payload) {
     const data = {
       id: payload.id,
@@ -16,6 +20,21 @@ class ViVoucherService {
 
   // 1. Thêm 1 Voucher vào ví (Tự sinh mã VVC0001, VVC0002...)
   async create(payload, client = prisma) {
+    // 1. Kiểm tra mã phiếu giảm giá bắt buộc
+    if (!payload.maphieugiamgia) {
+      throw new Error("PHIEU_GIAM_GIA_KHONG_TON_TAI");
+    }
+
+    // 2. Lấy thông tin phiếu giảm giá để lấy thuộc tính `thoihan` (tính bằng số ngày)
+    const phieuGiamGia = await client.phieugiamgia.findUnique({
+      where: { id: payload.maphieugiamgia },
+    });
+
+    if (!phieuGiamGia) {
+      throw new Error("PHIEU_GIAM_GIA_KHONG_TON_TAI");
+    }
+
+    // 3. Tự sinh mã VVC nếu chưa có
     if (!payload.id) {
       const last = await client.vivoucher.findFirst({
         orderBy: { id: "desc" },
@@ -26,7 +45,20 @@ class ViVoucherService {
       payload.id = `VVC${String(currentNumber + 1).padStart(4, "0")}`;
     }
 
-    const data = this.extractData(payload);
+    // 4. Tính toán ngày bắt đầu và ngày kết thúc
+    const ngaybatdau = new Date(); // Ngày hiện tại
+    const ngayketthuc = new Date(ngaybatdau);
+
+    // Lấy số ngày từ `thoihan` (mặc định 0 nếu không tìm thấy)
+    const soNgayThoiHan = parseInt(phieuGiamGia.thoihan, 10) || 0;
+    ngayketthuc.setDate(ngayketthuc.getDate() + soNgayThoiHan);
+
+    // 5. Chuẩn bị dữ liệu lưu vào DB
+    const data = {
+      ...this.extractData(payload),
+      ngaybatdau: ngaybatdau,
+      ngayketthuc: ngayketthuc,
+    };
 
     try {
       return await client.vivoucher.create({
@@ -66,50 +98,24 @@ class ViVoucherService {
 
   // 4. Lấy danh sách ví voucher theo Mã Khách Hàng
   // Lấy danh sách phiếu giảm giá của Khách hàng (Đã gom nhóm & Đếm số lượng)
+
   async findByKhachHang(makhachhang) {
+    const now = new Date();
     // 1. Truy vấn toàn bộ voucher trong ví của khách hàng
     const userVouchers = await prisma.vivoucher.findMany({
-      where: { makhachhang: makhachhang, trangthai: "Chưa dùng" },
+      where: {
+        makhachhang: makhachhang,
+        trangthai: "Chưa dùng",
+        ngaybatdau: { lte: now },
+        ngayketthuc: { gte: now },
+      },
       include: {
         phieugiamgia: true,
       },
     });
 
-    // 2. Tiến hành gom nhóm theo maphieugiamgia
-    const groupedMap = new Map();
-
-    for (const item of userVouchers) {
-      const key = item.maphieugiamgia;
-
-      if (!groupedMap.has(key)) {
-        groupedMap.set(key, {
-          maphieugiamgia: item.maphieugiamgia,
-          phieugiamgia: item.phieugiamgia,
-          tongSoluong: 0,
-          //   soluongChuaDung: 0,
-          //   soluongDaDung: 0,
-          // Danh sách các ID ví cá thể (hỗ trợ khi cần gọi API sử dụng/hoàn trả từng cái)
-          danhSachViVoucher: [],
-        });
-      }
-
-      const group = groupedMap.get(key);
-      group.tongSoluong += 1;
-
-      //   if (item.trangthai === "Chưa dùng") {
-      //     group.soluongChuaDung += 1;
-      //   } else if (item.trangthai === "Đã dùng") {
-      //     group.soluongDaDung += 1;
-      //   }
-
-      group.danhSachViVoucher.push({
-        id: item.id,
-        trangthai: item.trangthai,
-      });
-    }
-
     // 3. Chuyển Map thành Array để trả về cho Frontend
-    return Array.from(groupedMap.values());
+    return userVouchers;
   }
 
   // 5. Đổi trạng thái Voucher (Dùng / Hoàn trả khi hủy đơn)
@@ -180,27 +186,24 @@ class ViVoucherService {
     });
   }
 
-  // Tặng voucher dựa trên mốc chi tiêu đạt được từ đơn hàng vừa duyệt
   async rewardOnPurchase(makhachhang, tongchi, sotientronghoadonnay) {
     const currentTotal = parseFloat(tongchi);
     const invoiceAmount = parseFloat(sotientronghoadonnay);
     const previousTotal = currentTotal - invoiceAmount;
 
-    // 1. Tìm tất cả các mốc điều kiện mà đơn hàng này giúp khách hàng cán mốc
-    // Điều kiện: (tongchi - sotientronghoadonnay) < mocchitoithieu <= tongchi
+    // 1. Tìm các mốc điều kiện khách hàng vừa vượt qua
     const eligibleConditions = await prisma.dieukiennhanvoucher.findMany({
       where: {
         mocchitoithieu: {
-          gt: previousTotal, // > tongChiCu
-          lte: currentTotal, // <= tongchi
+          gt: previousTotal, // > chi tiêu cũ
+          lte: currentTotal, // <= chi tiêu mới
         },
       },
       include: {
-        phieugiamgia: true,
+        phieugiamgia: true, // 🟢 Đã include phieugiamgia tại đây
       },
     });
 
-    // Nếu không vượt qua mốc mới nào -> Trả về danh sách rỗng
     if (eligibleConditions.length === 0) {
       return {
         soVoucherDaTang: 0,
@@ -208,47 +211,55 @@ class ViVoucherService {
       };
     }
 
-    // 2. Lấy mã VVC lớn nhất hiện tại để đánh số nối tiếp (VVC0001, VVC0002...)
-    const lastVoucher = await prisma.vivoucher.findFirst({
-      orderBy: { id: "desc" },
-    });
-    let currentNumber = lastVoucher
-      ? parseInt(lastVoucher.id.replace(/\D/g, ""), 10) || 0
-      : 0;
-
-    // 3. Chuẩn bị danh sách bản ghi Ví Voucher cần tạo
-    const vouchersToInsert = [];
+    const createdVouchers = [];
     const rewardedDetails = [];
 
-    for (const condition of eligibleConditions) {
-      const quantity = condition.soluongnhan;
+    // 2. Chạy Transaction để cấp phát Ví Voucher
+    await prisma.$transaction(async (tx) => {
+      for (const condition of eligibleConditions) {
+        const quantity = condition.soluongnhan;
 
-      for (let i = 0; i < quantity; i++) {
-        currentNumber++;
-        vouchersToInsert.push({
-          id: `VVC${String(currentNumber).padStart(4, "0")}`,
-          makhachhang: makhachhang,
-          maphieugiamgia: condition.maphieugiamgia,
-          trangthai: "Chưa dùng",
+        for (let i = 0; i < quantity; i++) {
+          const newVoucher = await this.create(
+            {
+              makhachhang: makhachhang,
+              maphieugiamgia: condition.maphieugiamgia,
+              trangthai: "Chưa dùng",
+            },
+            tx,
+          );
+
+          createdVouchers.push(newVoucher);
+        }
+
+        rewardedDetails.push({
+          madieukien: condition.id,
+          mocchitoithieu: Number(condition.mocchitoithieu),
+          tenphieu: condition.phieugiamgia?.tenphieu,
+          soluong: quantity,
         });
       }
-
-      rewardedDetails.push({
-        madieukien: condition.id,
-        mocchitoithieu: Number(condition.mocchitoithieu),
-        tenphieu: condition.phieugiamgia.tenphieu,
-        soluong: quantity,
-      });
-    }
-
-    // 4. Lưu hàng loạt vào CSDL
-    await prisma.vivoucher.createMany({
-      data: vouchersToInsert,
     });
 
+    // 🟢 3. GỬI THÔNG BÁO SAU KHI TRANSACTION ĐÃ HOÀN TẤT THÀNH CÔNG
+    for (const condition of eligibleConditions) {
+      try {
+        await this.thongBaoService.createVoucherNotification({
+          makhachhang: makhachhang,
+          maphieu: condition.maphieugiamgia,
+          tenphieu: condition.phieugiamgia?.tenphieu,
+          soluong: condition.soluongnhan,
+          mocchi: condition.mocchitoithieu,
+        });
+      } catch (notifyError) {
+        console.error("Lỗi khi tự động gửi thông báo voucher:", notifyError);
+      }
+    }
+
     return {
-      soVoucherDaTang: vouchersToInsert.length,
+      soVoucherDaTang: createdVouchers.length,
       chitietThuong: rewardedDetails,
+      danhsachVoucher: createdVouchers,
     };
   }
 }

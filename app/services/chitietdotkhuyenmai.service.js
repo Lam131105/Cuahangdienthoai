@@ -5,7 +5,7 @@ class ChiTietDotKhuyenMaiService {
     const chiTiet = {
       id: payload.id,
       madotkhuyenmai: payload.madotkhuyenmai,
-      mabienthe: payload.mabienthe,
+      masanpham: payload.masanpham,
     };
     Object.keys(chiTiet).forEach(
       (key) => chiTiet[key] === undefined && delete chiTiet[key],
@@ -13,40 +13,83 @@ class ChiTietDotKhuyenMaiService {
     return chiTiet;
   }
 
-  // 1. Thêm biến thể vào Đợt khuyến mãi (Tự sinh mã CTKM0001, CTKM0002...)
-  async create(payload, client = prisma) {
-    if (!payload.id) {
-      const lastCT = await client.chitietdotkhuyenmai.findFirst({
+  async createMany(payload, client = prisma) {
+    const { madotkhuyenmai, masanphams } = payload;
+
+    // 1. Validation cơ bản đầu vào
+    if (!madotkhuyenmai) {
+      throw new Error("DOT_KHUYEN_MAI_KHONG_TON_TAI");
+    }
+
+    if (!masanphams || !Array.isArray(masanphams) || masanphams.length === 0) {
+      throw new Error("DANH_SACH_BIEN_THE_RONG");
+    }
+
+    // 2. Chạy Transaction cho toàn bộ danh sách biến thể
+    return await client.$transaction(async (tx) => {
+      // 2.1 Kiểm tra đợt khuyến mãi có tồn tại không
+      const dotKhuyenMai = await tx.dotkhuyenmai.findUnique({
+        where: { id: madotkhuyenmai },
+      });
+      if (!dotKhuyenMai) {
+        throw new Error("DOT_KHUYEN_MAI_KHONG_TON_TAI");
+      }
+
+      // 2.2 Lấy ID cuối cùng để làm mốc sinh mã CTKM tự động
+      const lastCT = await tx.chitietdotkhuyenmai.findFirst({
         orderBy: { id: "desc" },
       });
-      const currentNumber = lastCT
+      let currentNumber = lastCT
         ? parseInt(lastCT.id.replace(/\D/g, ""), 10) || 0
         : 0;
-      payload.id = `CTKM${String(currentNumber + 1).padStart(4, "0")}`;
-    }
 
-    const data = this.extractData(payload);
+      const createdList = [];
 
-    try {
-      return await client.chitietdotkhuyenmai.create({
-        data: data,
-        include: {
-          dotkhuyenmai: true,
-          bienthe: true,
-        },
-      });
-    } catch (error) {
-      if (error.code === "P2003") {
-        if (error.meta?.field_name?.includes("madotkhuyenmai")) {
-          throw new Error("DOT_KHUYES_MAI_KHONG_TON_TAI");
+      // 2.3 Lặp qua từng biến thể để tạo Chi tiết đợt khuyến mãi
+      for (const masanpham of masanphams) {
+        // Kiểm tra biến thể có tồn tại không
+        const bienThe = await tx.sanpham.findUnique({
+          where: { id: masanpham },
+        });
+        if (!bienThe) {
+          throw new Error(`BIEN_THE_KHONG_TON_TAI_${masanpham}`);
         }
-        throw new Error("BIEN_THE_KHONG_TON_TAI");
+
+        // Kiểm tra xem biến thể đã được thêm vào đợt khuyến mãi này chưa (tránh trùng khóa)
+        const existingCTKM = await tx.chitietdotkhuyenmai.findFirst({
+          where: {
+            madotkhuyenmai: madotkhuyenmai,
+            masanpham: masanpham,
+          },
+        });
+        if (existingCTKM) {
+          continue; //throw new Error(`BIEN_THE_DA_CO_TRONG_DOT_${masanpham}`);
+        }
+
+        currentNumber++;
+        const newID = `CTKM${String(currentNumber).padStart(4, "0")}`;
+
+        const itemPayload = {
+          id: newID,
+          madotkhuyenmai: madotkhuyenmai,
+          masanpham: masanpham,
+        };
+
+        const data = this.extractData(itemPayload);
+
+        const newDetail = await tx.chitietdotkhuyenmai.create({
+          data: data,
+          include: {
+            dotkhuyenmai: true,
+            sanpham: true,
+          },
+        });
+
+        createdList.push(newDetail);
       }
-      if (error.code === "P2002") {
-        throw new Error("BIEN_THE_DA_CO_TRONG_DOT");
-      }
-      throw error;
-    }
+
+      return createdList;
+    });
   }
 
   // 2. Tìm danh sách Chi tiết đợt khuyến mãi theo bộ lọc
@@ -56,27 +99,39 @@ class ChiTietDotKhuyenMaiService {
     if (filterData.id) where.id = filterData.id;
     if (filterData.madotkhuyenmai)
       where.madotkhuyenmai = filterData.madotkhuyenmai;
-    if (filterData.mabienthe) where.mabienthe = filterData.mabienthe;
+    if (filterData.masanpham) where.masanpham = filterData.masanpham;
 
     return await prisma.chitietdotkhuyenmai.findMany({
       where: where,
       include: {
         dotkhuyenmai: true,
-        bienthe: true,
+        sanpham: true,
       },
     });
   }
 
   // 5. Xóa 1 bản ghi
-  async delete(id) {
-    try {
-      return await prisma.chitietdotkhuyenmai.delete({
-        where: { id: id },
-      });
-    } catch (error) {
-      if (error.code === "P2025") return null;
-      throw error;
+  async deleteMany(payload, client = prisma) {
+    const { ids } = payload;
+
+    // 1. Validation cơ bản đầu vào
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      throw new Error("DANH_SACH_ID_RONG");
     }
+
+    // 2. Chạy Transaction thực hiện xóa
+    return await client.$transaction(async (tx) => {
+      // Thực hiện xóa tất cả các bản ghi có ID nằm trong mảng truyền vào
+      const result = await tx.chitietdotkhuyenmai.deleteMany({
+        where: {
+          id: {
+            in: ids, // Xóa theo danh sách khóa chính CTKMxxxx
+          },
+        },
+      });
+
+      return result; // Trả về dạng { count: số_bản_ghi_đã_xóa }
+    });
   }
 
   // 6. Xóa toàn bộ
@@ -91,7 +146,17 @@ class ChiTietDotKhuyenMaiService {
       where: { id: id },
       include: {
         dotkhuyenmai: true,
-        bienthe: true,
+        sanpham: true,
+      },
+    });
+  }
+
+  async findByDotKhuyenMai(madotkhuyenmai) {
+    return await prisma.chitietdotkhuyenmai.findMany({
+      where: { madotkhuyenmai: madotkhuyenmai },
+      include: {
+        dotkhuyenmai: true,
+        sanpham: true,
       },
     });
   }

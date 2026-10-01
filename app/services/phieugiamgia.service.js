@@ -18,9 +18,10 @@ class PhieuGiamGiaService {
         payload.giamtoida !== undefined
           ? parseFloat(payload.giamtoida)
           : undefined,
-      ngaybatdau: payload.ngaybatdau ? new Date(payload.ngaybatdau) : undefined,
-      ngayhethan: payload.ngayhethan ? new Date(payload.ngayhethan) : undefined,
+      thoihan:
+        payload.thoihan !== undefined ? parseInt(payload.thoihan) : undefined,
       loaigiamgia: payload.loaigiamgia,
+      duongdananh: payload.duongdananh,
     };
     Object.keys(phieuGiamGia).forEach(
       (key) => phieuGiamGia[key] === undefined && delete phieuGiamGia[key],
@@ -40,6 +41,9 @@ class PhieuGiamGiaService {
       payload.id = `PGG${String(currentNumber + 1).padStart(4, "0")}`;
     }
 
+    if (payload.loaigiamgia === "Tiền cố định") {
+      payload.giamtoida = null;
+    }
     const data = this.extractPhieuGiamGiaData(payload);
     return await client.phieugiamgia.create({ data });
   }
@@ -60,24 +64,15 @@ class PhieuGiamGiaService {
 
     return await prisma.phieugiamgia.findMany({
       where: where,
-      orderBy: { ngaybatdau: "desc" },
-    });
-  }
-
-  // 3. Lấy các phiếu giảm giá đang diễn ra / có hiệu lực
-  async findActive() {
-    const now = new Date();
-    return await prisma.phieugiamgia.findMany({
-      where: {
-        ngaybatdau: { lte: now },
-        ngayhethan: { gte: now },
-      },
-      orderBy: { ngayhethan: "asc" },
+      orderBy: { id: "desc" },
     });
   }
 
   // 4. Cập nhật Phiếu Giảm Giá
   async update(id, payload) {
+    if (payload.loaigiamgia === "Tiền cố định") {
+      payload.giamtoida = null;
+    }
     const updateData = this.extractPhieuGiamGiaData(payload);
     delete updateData.id;
 

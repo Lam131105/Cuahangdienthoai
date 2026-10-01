@@ -1,5 +1,6 @@
 const express = require("express");
 const nhanVien = require("../controllers/nhanvien.controller");
+const upload = require("../middlewares/khachhangupload");
 
 const router = express.Router();
 
@@ -13,7 +14,7 @@ router.post("/login", nhanVien.login);
 router
   .route("/:id")
   .get(nhanVien.findOne)
-  .put(nhanVien.update)
+  .put(upload.single("image"), nhanVien.update)
   .delete(nhanVien.delete);
 
 module.exports = router;

@@ -7,6 +7,12 @@ class DiaChiService {
       tennguoinhan: payload.tennguoinhan,
       sdtnguoinhan: payload.sdtnguoinhan,
       diachichitiet: payload.diachichitiet,
+      tinhthanhid: payload.tinhthanhid,
+      tentinhthanh: payload.tentinhthanh,
+      quanhuyenid: payload.quanhuyenid,
+      tenquanhuyen: payload.tenquanhuyen,
+      phuongxaid: payload.phuongxaid,
+      tenphuongxa: payload.tenphuongxa,
       lamacdinh:
         payload.lamacdinh !== undefined
           ? Boolean(payload.lamacdinh)
@@ -22,11 +28,8 @@ class DiaChiService {
   // 1. Tạo địa chỉ mới
   async create(payload, client = prisma) {
     if (!payload.id) {
-      // Dùng client để đảm bảo cùng ngữ cảnh Transaction
       const lastDiaChi = await client.diachi.findFirst({
-        orderBy: {
-          id: "desc",
-        },
+        orderBy: { id: "desc" },
       });
 
       if (!lastDiaChi) {
@@ -38,15 +41,41 @@ class DiaChiService {
       }
     }
 
-    if (payload.lamacdinh === undefined) {
-      payload.lamacdinh = false;
+    // 🟢 SỬA LẠI LOGIC MẶC ĐỊNH Ở ĐÂY:
+    // Kiểm tra xem khách hàng này đã có địa chỉ nào chưa
+    const existingCount = await client.diachi.count({
+      where: { makhachhang: payload.makhachhang },
+    });
+
+    if (existingCount === 0) {
+      // Nếu chưa có địa chỉ nào -> BẮT BUỘC là địa chỉ mặc định
+      payload.lamacdinh = true;
+    } else {
+      // Nếu đã có địa chỉ rồi -> Lấy đúng giá trị từ Frontend gửi lên (true hoặc false)
+      payload.lamacdinh = Boolean(payload.lamacdinh);
     }
 
     const data = this.extractDiaChiData(payload);
 
     try {
-      return await client.diachi.create({
-        data: data,
+      // 🟢 Nếu tạo địa chỉ mới là MẶC ĐỊNH -> Bọc trong Transaction
+      return await client.$transaction(async (tx) => {
+        if (data.lamacdinh === true && data.makhachhang) {
+          // Bước 1: Reset tất cả địa chỉ khác của khách hàng này về lamacdinh = false
+          await tx.diachi.updateMany({
+            where: {
+              makhachhang: data.makhachhang,
+            },
+            data: {
+              lamacdinh: false,
+            },
+          });
+        }
+
+        // Bước 2: Tạo địa chỉ mới
+        return await tx.diachi.create({
+          data: data,
+        });
       });
     } catch (error) {
       // Mã P2003: Lỗi vi phạm ràng buộc khóa ngoại (Mã khách hàng không tồn tại)
@@ -91,15 +120,29 @@ class DiaChiService {
   }
 
   // 4. Cập nhật Địa Chỉ
-  async update(id, payload) {
+  async update(id, payload, client = prisma) {
     const updateData = this.extractDiaChiData(payload);
     delete updateData.id;
     delete updateData.makhachhang; // Không cho phép đổi địa chỉ sang khách hàng khác
 
     try {
-      return await prisma.diachi.update({
-        where: { id: id },
-        data: updateData,
+      return await client.$transaction(async (tx) => {
+        if (updateData.lamacdinh === true) {
+          const diachi = await tx.diachi.findUnique({ where: { id: id } });
+          // Bước 1: Reset tất cả địa chỉ khác của khách hàng này về lamacdinh = false
+          await tx.diachi.updateMany({
+            where: {
+              makhachhang: diachi.makhachhang,
+            },
+            data: {
+              lamacdinh: false,
+            },
+          });
+        }
+        return await tx.diachi.update({
+          where: { id: id },
+          data: updateData,
+        });
       });
     } catch (error) {
       if (error.code === "P2025") {

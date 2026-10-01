@@ -86,21 +86,20 @@ class YeuThichService {
     };
   }
   // 6. Xóa 1 yêu thích
-  async delete(id) {
+  async delete(filterData) {
     try {
       return await prisma.yeuthich.delete({
-        where: { id: id },
+        where: {
+          masanpham_makhachhang: {
+            masanpham: filterData.masanpham,
+            makhachhang: filterData.makhachhang,
+          },
+        },
       });
     } catch (error) {
       if (error.code === "P2025") return null;
       throw error;
     }
-  }
-
-  // 7. Xóa toàn bộ yêu thích
-  async deleteAll() {
-    const result = await prisma.yeuthich.deleteMany({});
-    return result.count;
   }
 
   // 8. Tìm chi tiết yêu thích theo ID

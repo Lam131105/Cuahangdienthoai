@@ -6,9 +6,12 @@ const router = express.Router();
 router
   .route("/")
   .get(chiTietKM.findAll)
-  .post(chiTietKM.create)
+  .post(chiTietKM.createMany)
   .delete(chiTietKM.deleteAll);
+router.route("/bulk-delete").delete(chiTietKM.deleteMany);
 
-router.route("/:id").get(chiTietKM.findOne).delete(chiTietKM.delete);
+router.get("/dotkhuyenmai/:madotkhuyenmai", chiTietKM.findByDotKhuyenMai);
+
+router.route("/:id").get(chiTietKM.findOne);
 
 module.exports = router;

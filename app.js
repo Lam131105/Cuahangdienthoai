@@ -25,6 +25,11 @@ const phieuGiamGiaRouter = require("./app/routes/phieugiamgia.route");
 const dieuKienNhanVoucherRouter = require("./app/routes/dieukiennhanvoucher.route");
 const viVoucherRouter = require("./app/routes/vivoucher.route");
 const phieuNhapRouter = require("./app/routes/phieunhap.route");
+const chiTietNhapRouter = require("./app/routes/chitietnhap.route");
+const gioHangRouter = require("./app/routes/giohang.route");
+const chiTietGioHangRouter = require("./app/routes/chitietgiohang.route");
+const donHangRouter = require("./app/routes/donhang.route");
+const chiTietDonHangRouter = require("./app/routes/chitietdonhang.route");
 
 const app = express();
 
@@ -60,10 +65,18 @@ app.use("/api/phieugiamgia", phieuGiamGiaRouter);
 app.use("/api/dieukiennhanvoucher", dieuKienNhanVoucherRouter);
 app.use("/api/vivoucher", viVoucherRouter);
 app.use("/api/phieunhap", phieuNhapRouter);
+app.use("/api/chitietnhap", chiTietNhapRouter);
+app.use("/api/giohang", gioHangRouter);
+app.use("/api/chitietgiohang", chiTietGioHangRouter);
+app.use("/api/donhang", donHangRouter);
+app.use("/api/chitietdonhang", chiTietDonHangRouter);
+app.use("/uploads", express.static("public/uploads"));
 
 // Middleware xử lý lỗi 404 (Không tìm thấy route)
-app.use((req, res, next) => {
-  return res.status(404).json({ message: "Resource not found" });
+// Middleware xử lý lỗi tập trung
+app.use((err, req, res, next) => {
+  return res.status(err.statusCode || 500).json({
+    message: err.message || "Internal Server Error",
+  });
 });
-
 module.exports = app;

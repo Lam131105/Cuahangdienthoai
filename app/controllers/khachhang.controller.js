@@ -3,20 +3,30 @@ const ApiError = require("../api-error");
 
 // ============================== 1. Tạo và lưu Khách Hàng mới (Có thể kèm Địa Chỉ) ==================================
 exports.create = async (req, res, next) => {
-  if (!req.body?.hoten || !req.body?.email || !req.body?.matkhau) {
+  if (
+    !req.body?.hoten ||
+    !req.body?.email ||
+    !req.body?.matkhau ||
+    !req.body?.sodienthoai
+  ) {
     return next(
-      new ApiError(400, "Họ tên, email và mật khẩu không được để trống"),
+      new ApiError(
+        400,
+        "Họ tên, email, số điện thoại và mật khẩu không được để trống",
+      ),
     );
   }
 
   try {
     const khachHangService = new KhachHangService();
     const document = await khachHangService.create(req.body);
+
     return res.send({
-      message: "Tạo tài khoản khách hàng thành công",
+      message: "Tạo tài khoản và giỏ hàng cho khách hàng thành công",
       data: document,
     });
   } catch (error) {
+    console.error("LỖI CHI TIẾT NHẬP:", error);
     if (error.message === "EMAIL_DA_TON_TAI") {
       return next(
         new ApiError(400, "Email này đã được sử dụng trong hệ thống"),
@@ -54,13 +64,18 @@ exports.findAll = async (req, res, next) => {
 
 // ============================== 3. Cập nhật thông tin Khách Hàng theo mã ==================================
 exports.update = async (req, res, next) => {
-  if (Object.keys(req.body).length === 0) {
+  if (Object.keys(req.body).length === 0 && !req.file) {
     return next(new ApiError(400, "Dữ liệu cập nhật không được để trống"));
   }
 
   try {
+    const updateData = { ...req.body };
+    if (req.file) {
+      // 🟢 Gán tên file vào thuộc tính duongdananh của Database
+      updateData.duongdananh = `/uploads/khachhang/${req.file.filename}`;
+    }
     const khachHangService = new KhachHangService();
-    const document = await khachHangService.update(req.params.id, req.body);
+    const document = await khachHangService.update(req.params.id, updateData);
     if (!document) {
       return next(new ApiError(404, "Không tìm thấy Khách hàng cần cập nhật"));
     }
@@ -90,6 +105,14 @@ exports.delete = async (req, res, next) => {
     }
     return res.send({ message: "Đã xóa Khách hàng thành công" });
   } catch (error) {
+    if (error.code === "P2003") {
+      return next(
+        new ApiError(
+          400,
+          `Không thể xóa các Khách hàng này vì khách hàng ${req.params.id} đã mua hàng trước đây!`,
+        ),
+      );
+    }
     return next(
       new ApiError(
         400,
@@ -108,6 +131,14 @@ exports.deleteAll = async (req, res, next) => {
       message: `Đã xóa sạch thành công ${deletedCount} Khách hàng khỏi hệ thống`,
     });
   } catch (error) {
+    if (error.code === "P2003") {
+      return next(
+        new ApiError(
+          400,
+          "Không thể xóa các Khách hàng này vì khách hàng này đã mua hàng trước đây!",
+        ),
+      );
+    }
     return next(
       new ApiError(
         400,
@@ -169,16 +200,78 @@ exports.login = async (req, res, next) => {
     return next(new ApiError(500, "Đã xảy ra lỗi trong quá trình đăng nhập"));
   }
 };
-// ============================== Đăng Xuất ==================================
-// exports.logout = async (req, res, next) => {
-//   try {
-//     // Nếu bạn dùng Cookie để lưu Session/JWT Token:
-//     res.clearCookie("token"); // Xóa cookie tên 'token' trên browser
 
-//     return res.send({
-//       message: "Đăng xuất thành công",
-//     });
-//   } catch (error) {
-//     return next(new ApiError(500, "Đã xảy ra lỗi trong quá trình đăng xuất"));
-//   }
-// };
+exports.googleLogin = async (req, res) => {
+  try {
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        message: "Thiếu Google Token trong request payload!",
+      });
+    }
+
+    const khachHangService = new KhachHangService();
+    const user = await khachHangService.loginWithGoogle(token);
+
+    return res.status(200).json({
+      success: true,
+      message: "Đăng nhập bằng Google thành công!",
+      user: user,
+    });
+  } catch (error) {
+    console.error("Lỗi Controller googleLogin:", error);
+
+    if (error.message === "TOKEN_INVALID") {
+      return res.status(401).json({
+        success: false,
+        message: "Token Google không hợp lệ hoặc đã hết hạn!",
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: "Đã xảy ra lỗi hệ thống khi đăng nhập bằng Google.",
+    });
+  }
+};
+
+exports.loginWithFacebook = async (req, res) => {
+  try {
+    // 1. Lấy biến 'token' từ req.body (khớp với Frontend gửi lên { token: facebookToken })
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        message: "Thiếu Facebook Token trong request payload!",
+      });
+    }
+
+    const khachHangService = new KhachHangService();
+
+    // 2. Truyền đúng biến 'token' vừa lấy ở trên vào Service
+    const user = await khachHangService.loginWithFacebook(token);
+
+    return res.status(200).json({
+      success: true,
+      message: "Đăng nhập bằng Facebook thành công!",
+      user: user,
+    });
+  } catch (error) {
+    console.error("Lỗi Controller loginWithFacebook:", error);
+
+    if (error.message === "XAC_THUC_FACEBOOK_THAT_BAI") {
+      return res.status(401).json({
+        success: false,
+        message: "Token Facebook không hợp lệ hoặc đã hết hạn!",
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: "Đã xảy ra lỗi hệ thống khi đăng nhập bằng Facebook.",
+    });
+  }
+};

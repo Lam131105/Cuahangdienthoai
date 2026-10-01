@@ -10,6 +10,7 @@ class NhanVienService {
       matkhau: payload.matkhau,
       email: payload.email,
       sodienthoai: payload.sodienthoai,
+      duongdananh: payload.duongdananh,
       ngaysinh: payload.ngaysinh ? new Date(payload.ngaysinh) : undefined,
       trangthai: payload.trangthai,
       vaitroid: payload.vaitroid,
@@ -94,10 +95,11 @@ class NhanVienService {
         hoten: true,
         email: true,
         sodienthoai: true,
+        duongdananh: true,
         ngaysinh: true,
         vaitroid: true,
         trangthai: true,
-        //        vaitro: true, // Lấy kèm thông tin vai trò
+        vaitro: true, // Lấy kèm thông tin vai trò
         // Không select trường matkhau
       },
     });
@@ -117,6 +119,7 @@ class NhanVienService {
           hoten: true,
           email: true,
           sodienthoai: true,
+          duongdananh: true,
           ngaysinh: true,
           trangthai: true,
           vaitroid: true,
@@ -165,11 +168,12 @@ class NhanVienService {
         hoten: true,
         email: true,
         sodienthoai: true,
+        duongdananh: true,
         ngaysinh: true,
         trangthai: true,
         vaitroid: true,
 
-        //       vaitro: true,
+        vaitro: true,
       },
     });
   }

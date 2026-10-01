@@ -3,10 +3,12 @@ const ApiError = require("../api-error");
 
 // ============================== 1. Tạo Sản Phẩm mới ==================================
 exports.create = async (req, res, next) => {
+  console.log("1. req.body (Các trường dữ liệu Text):", req.body);
   if (
     !req.body?.tensanpham ||
     !req.body?.mathuonghieu ||
-    !req.body?.matheloai
+    !req.body?.matheloai ||
+    !req.body?.manhacungcap
   ) {
     return next(
       new ApiError(
@@ -30,6 +32,9 @@ exports.create = async (req, res, next) => {
     if (error.message === "THE_LOAI_KHONG_TON_TAI") {
       return next(new ApiError(404, "Mã thể loại cung cấp không tồn tại"));
     }
+    if (error.message === "NHA_CUNG_CAP_KHONG_TON_TAI") {
+      return next(new ApiError(404, "Mã nhà cung cấp cung cấp không tồn tại"));
+    }
     return next(
       new ApiError(500, "Đã xảy ra lỗi trong quá trình tạo sản phẩm"),
     );
@@ -39,25 +44,62 @@ exports.create = async (req, res, next) => {
 // =================== 2. Lấy danh sách Sản Phẩm (Hỗ trợ lọc) =================
 exports.findAll = async (req, res, next) => {
   try {
+    console.log("=== DỮ LIỆU QUERY NHẬN ĐƯỢC ===");
+    console.log(req.query);
     const sanPhamService = new SanPhamService();
 
     const filterData = {
       id: req.query.id, // ?id=SP0001
-      tensanpham: req.query.name, // ?name=iPhone
+      tensanpham: req.query.tensanpham, // ?name=iPhone
       mathuonghieu: req.query.mathuonghieu, // ?mathuonghieu=TH0001
       matheloai: req.query.matheloai, // ?matheloai=TL0001
+      manhacungcap: req.query.manhacungcap,
       trangthai: req.query.trangthai, // ?trangthai=true
+      marom: req.query.marom,
+      maram: req.query.maram,
+      mamausac: req.query.mamausac,
+      makhachhang: req.query.makhachhang,
     };
 
     const documents = await sanPhamService.find(filterData);
     return res.send(documents);
   } catch (error) {
+    console.error("Lỗi khi thêm danh sách chi tiết đơn hàng:", error);
+    return next(new ApiError(500, "Đã xảy ra lỗi khi lấy danh sách sản phẩm"));
+  }
+};
+
+// =================== 2. Lấy danh sách Sản Phẩm (Hỗ trợ lọc) =================
+exports.findForKhachHang = async (req, res, next) => {
+  try {
+    console.log("=== DỮ LIỆU QUERY NHẬN ĐƯỢC ===");
+    console.log(req.query);
+    const sanPhamService = new SanPhamService();
+
+    const filterData = {
+      id: req.query.id, // ?id=SP0001
+      tensanpham: req.query.tensanpham, // ?name=iPhone
+      mathuonghieu: req.query.mathuonghieu, // ?mathuonghieu=TH0001
+      matheloai: req.query.matheloai, // ?matheloai=TL0001
+      manhacungcap: req.query.manhacungcap,
+      trangthai: req.query.trangthai, // ?trangthai=true
+      marom: req.query.marom,
+      maram: req.query.maram,
+      mamausac: req.query.mamausac,
+      makhachhang: req.query.makhachhang,
+    };
+
+    const documents = await sanPhamService.findForKhachHang(filterData);
+    return res.send(documents);
+  } catch (error) {
+    console.error("Lỗi khi thêm danh sách chi tiết đơn hàng:", error);
     return next(new ApiError(500, "Đã xảy ra lỗi khi lấy danh sách sản phẩm"));
   }
 };
 
 // ============================== 5. Cập nhật Sản Phẩm ==================================
 exports.update = async (req, res, next) => {
+  console.log("1. req.body (Các trường dữ liệu Text):", req.body);
   if (Object.keys(req.body).length === 0) {
     return next(new ApiError(400, "Dữ liệu cập nhật không được để trống"));
   }
@@ -75,6 +117,9 @@ exports.update = async (req, res, next) => {
     }
     if (error.message === "THE_LOAI_KHONG_TON_TAI") {
       return next(new ApiError(404, "Mã thể loại không tồn tại"));
+    }
+    if (error.message === "NHA_CUNG_CAP_KHONG_TON_TAI") {
+      return next(new ApiError(404, "Mã nhà cung cấp cung cấp không tồn tại"));
     }
     return next(
       new ApiError(500, `Lỗi khi cập nhật sản phẩm với mã = ${req.params.id}`),
@@ -118,12 +163,16 @@ exports.deleteAll = async (req, res, next) => {
 exports.findOne = async (req, res, next) => {
   try {
     const sanPhamService = new SanPhamService();
-    const document = await sanPhamService.findById(req.params.id);
+    const filterData = {
+      makhachhang: req.query.makhachhang,
+    };
+    const document = await sanPhamService.findById(req.params.id, filterData);
     if (!document) {
       return next(new ApiError(404, "Không tìm thấy sản phẩm"));
     }
     return res.send(document);
   } catch (error) {
+    console.error("Lỗi khi thêm danh sách chi tiết đơn hàng:", error);
     return next(
       new ApiError(500, `Lỗi khi truy vấn sản phẩm với mã = ${req.params.id}`),
     );

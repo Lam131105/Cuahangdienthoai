@@ -70,35 +70,33 @@ exports.findBySanPham = async (req, res, next) => {
   }
 };
 
-// ============================== 6. Xóa một yêu thích ==================================
 exports.delete = async (req, res, next) => {
   try {
     const yeuThichService = new YeuThichService();
-    const document = await yeuThichService.delete(req.params.id);
+    if (!req.query.masanpham || !req.query.makhachhang) {
+      return next(
+        new ApiError(400, "Mã sản phẩm và mã khách hàng không được để trống"),
+      );
+    }
+    const filterData = {
+      masanpham: req.query.masanpham, // ?masanpham=SP0001
+      makhachhang: req.query.makhachhang, // ?makhachhang=KH0001
+    };
+
+    const document = await yeuThichService.delete(filterData);
     if (!document) {
       return next(new ApiError(404, "Không tìm thấy yêu thích cần xóa"));
     }
     return res.send({ message: "Đã xóa yêu thích thành công" });
   } catch (error) {
+    console.error(`Lỗi khi xóa chi tiết đơn hàng id `, error);
     return next(
       new ApiError(
         400,
-        error.message || `Không thể xóa yêu thích với mã = ${req.params.id}`,
+        error.message ||
+          `Không thể xóa yêu thích với mã = ${req.query.masanpham}/${req.query.makhachhang}`,
       ),
     );
-  }
-};
-
-// ============================== 7. Xóa tất cả yêu thích ==================================
-exports.deleteAll = async (req, res, next) => {
-  try {
-    const yeuThichService = new YeuThichService();
-    const deletedCount = await yeuThichService.deleteAll();
-    return res.send({
-      message: `Đã xóa thành công ${deletedCount} yêu thích khỏi hệ thống`,
-    });
-  } catch (error) {
-    return next(new ApiError(400, "Đã xảy ra lỗi khi xóa toàn bộ yêu thích"));
   }
 };
 

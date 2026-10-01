@@ -15,6 +15,11 @@ exports.create = async (req, res, next) => {
       data: document,
     });
   } catch (error) {
+    if (error.code === "P2002") {
+      return next(
+        new ApiError(400, "Đã tồn tại màu săc này trong cơ sở dữ liệu!"),
+      );
+    }
     return next(new ApiError(500, "Đã xảy ra lỗi trong quá trình tạo màu sắc"));
   }
 };
@@ -53,6 +58,11 @@ exports.update = async (req, res, next) => {
       document,
     });
   } catch (error) {
+    if (error.code === "P2002") {
+      return next(
+        new ApiError(400, "Đã tồn tại màu săc này trong cơ sở dữ liệu!"),
+      );
+    }
     return next(
       new ApiError(500, `Lỗi khi cập nhật màu sắc với mã = ${req.params.id}`),
     );
@@ -69,6 +79,14 @@ exports.delete = async (req, res, next) => {
     }
     return res.send({ message: "Đã xóa màu sắc thành công" });
   } catch (error) {
+    if (error.code === "P2003") {
+      return next(
+        new ApiError(
+          400,
+          "Không thể xóa Màu sắc này vì đang có Sản phẩm thuộc màu sắc này!",
+        ),
+      );
+    }
     return next(
       new ApiError(
         400,
@@ -87,6 +105,14 @@ exports.deleteAll = async (req, res, next) => {
       message: `Đã xóa thành công ${deletedCount} màu sắc khỏi hệ thống`,
     });
   } catch (error) {
+    if (error.code === "P2003") {
+      return next(
+        new ApiError(
+          400,
+          "Không thể xóa tất cả màu sắc vì đang có Sản phẩm thuộc các màu sắc này!",
+        ),
+      );
+    }
     return next(
       new ApiError(400, "Đã xảy ra lỗi khi xóa toàn bộ dữ liệu màu sắc"),
     );

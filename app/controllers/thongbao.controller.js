@@ -20,6 +20,31 @@ exports.create = async (req, res, next) => {
       data: document,
     });
   } catch (error) {
+    console.error(`Lỗi khi lấy `, error);
+    if (error.message === "KHACH_HANG_KHONG_TON_TAI") {
+      return next(new ApiError(404, "Mã khách hàng cung cấp không tồn tại"));
+    }
+    return next(
+      new ApiError(500, "Đã xảy ra lỗi trong quá trình tạo thông báo"),
+    );
+  }
+};
+
+// ============================== 1. Tạo nhiều Thông Báo mới ==================================
+exports.createAll = async (req, res, next) => {
+  if (!req.body?.tieude || !req.body?.noidung) {
+    return next(new ApiError(400, "Tiêu đề, nội dung không được để trống"));
+  }
+
+  try {
+    const thongBaoService = new ThongBaoService();
+    const document = await thongBaoService.createAll(req.body);
+    return res.send({
+      message: "Tạo thông báo thành công",
+      data: document,
+    });
+  } catch (error) {
+    console.error(`Lỗi khi lấy `, error);
     if (error.message === "KHACH_HANG_KHONG_TON_TAI") {
       return next(new ApiError(404, "Mã khách hàng cung cấp không tồn tại"));
     }
@@ -44,6 +69,7 @@ exports.findAll = async (req, res, next) => {
     const documents = await thongBaoService.find(filterData);
     return res.send(documents);
   } catch (error) {
+    console.error(`Lỗi khi lấy `, error);
     return next(new ApiError(500, "Đã xảy ra lỗi khi lấy danh sách thông báo"));
   }
 };
@@ -131,8 +157,25 @@ exports.findOne = async (req, res, next) => {
     }
     return res.send(document);
   } catch (error) {
+    console.error(`Lỗi khi lấy `, error);
     return next(
       new ApiError(500, `Lỗi khi truy vấn thông báo với mã = ${req.params.id}`),
+    );
+  }
+};
+
+exports.updateSeen = async (req, res, next) => {
+  try {
+    const thongBaoService = new ThongBaoService();
+    const document = await thongBaoService.updateSeen(req.params.id);
+    if (!document) {
+      return next(new ApiError(404, "Không tìm thấy thông báo cần cập nhật"));
+    }
+    return res.send({ message: "Cập nhật thông báo thành công", document });
+  } catch (error) {
+    console.error("Lỗi khi thêm danh sách chi tiết đơn hàng:", error);
+    return next(
+      new ApiError(500, `Lỗi khi cập nhật thông báo với mã = ${req.params.id}`),
     );
   }
 };

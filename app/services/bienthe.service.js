@@ -34,9 +34,7 @@ class BienTheService {
       payload.id = `BT${String(currentNumber + 1).padStart(4, "0")}`;
     }
 
-    if (payload.soluong === undefined) {
-      payload.soluong = 0;
-    }
+    payload.soluong = 0;
 
     const data = this.extractBienTheData(payload);
 
@@ -92,42 +90,57 @@ class BienTheService {
         ram: true,
         rom: true,
         mausac: true,
-        // Include đợt khuyến mãi thông qua bảng trung gian
-        danhsach_chitietkhuyenmai: {
-          include: {
-            dotkhuyenmai: true,
-          },
-        },
+        //     Include đợt khuyến mãi thông qua bảng trung gian
+        // sanpham: {
+        //   include: {
+        //     danhsach_chitietkhuyenmai: {
+        //       include: {
+        //         dotkhuyenmai: true,
+        //       },
+        //     },
+        //   },
+        // },
       },
     });
 
-    // Tính toán giá sau giảm cho từng biến thể trong danh sách
-    return rawList.map((item) => this.applyPromotionToVariant(item));
+    // 🟢 Cách viết ngắn gọn & tối ưu hơn:
+    return await Promise.all(
+      rawList.map((item) => this.applyPromotionToVariant(item)),
+    );
   }
 
   // 3. Lấy tất cả Biến Thể thuộc một Sản Phẩm
   async findBySanPham(masanpham) {
     const rawList = await prisma.bienthe.findMany({
       where: { masanpham: masanpham },
+      orderBy: { id: "desc" },
       include: {
         ram: true,
         rom: true,
         mausac: true,
-        danhsach_chitietkhuyenmai: {
+        sanpham: {
           include: {
-            dotkhuyenmai: true,
+            danhsach_chitietkhuyenmai: {
+              include: {
+                dotkhuyenmai: true,
+              },
+            },
           },
         },
       },
     });
 
-    return rawList.map((item) => this.applyPromotionToVariant(item));
+    // 🟢 Cách viết ngắn gọn & tối ưu hơn:
+    return await Promise.all(
+      rawList.map((item) => this.applyPromotionToVariant(item)),
+    );
   }
 
   // 4. Cập nhật Biến Thể
   async update(id, payload) {
     const updateData = this.extractBienTheData(payload);
     delete updateData.id;
+    delete updateData.soluong;
 
     try {
       return await prisma.bienthe.update({
@@ -179,16 +192,30 @@ class BienTheService {
 
   // 7. Tìm chi tiết Biến Thể theo ID
   async findById(id) {
+    const now = new Date();
     const rawData = await prisma.bienthe.findUnique({
       where: { id: id },
       include: {
-        sanpham: true,
         ram: true,
         rom: true,
         mausac: true,
-        danhsach_chitietkhuyenmai: {
+        sanpham: {
           include: {
-            dotkhuyenmai: true,
+            danhsach_chitietkhuyenmai: {
+              where: {
+                dotkhuyenmai: {
+                  ngaybatdau: { lte: now },
+                  ngayketthuc: { gte: now },
+                },
+              },
+              include: { dotkhuyenmai: true },
+            },
+
+            danhsach_anh: {
+              where: {
+                laanhchinh: true,
+              },
+            },
           },
         },
       },
@@ -196,109 +223,90 @@ class BienTheService {
 
     if (!rawData) return null;
 
-    return this.applyPromotionToVariant(rawData);
+    return await this.applyPromotionToVariant(rawData);
   }
 
   // 🔹 HÀM PHỤ TRỢ: Xử lý tính toán giá khuyến mãi cho 1 Biến Thể
-  applyPromotionToVariant(bienThe) {
+  async applyPromotionToVariant(bienThe) {
     const now = new Date();
     let giagoc = Number(bienThe.gia);
     let giasaugiam = giagoc;
     let dakhuyenmai = false;
     let thongtinkhuyenmai = null;
+    const sanPham = await prisma.sanpham.findUnique({
+      where: { id: bienThe.masanpham },
 
-    // Lọc lấy danh sách đợt khuyến mãi ĐANG DIỄN RA
-    const activePromotions = (bienThe.danhsach_chitietkhuyenmai || [])
+      include: {
+        danhsach_chitietkhuyenmai: {
+          where: {
+            dotkhuyenmai: {
+              ngaybatdau: { lte: now },
+              ngayketthuc: { gte: now },
+            },
+          },
+          include: { dotkhuyenmai: true },
+        },
+      },
+    });
+
+    // 1. Lọc lấy danh sách đợt khuyến mãi ĐANG DIỄN RA + Tính sẵn số tiền giảm thực tế
+    const activePromotions = (sanPham.danhsach_chitietkhuyenmai || [])
       .map((ct) => ct.dotkhuyenmai)
       .filter((dot) => {
         if (!dot) return false;
-        const start = new Date(dot.ngaybatdau);
-        const end = new Date(dot.ngayketthuc);
-        return start <= now && now <= end;
+        return true;
+      })
+      .map((dot) => {
+        const giatrigiam = Number(dot.giatrigiam);
+        const loaigiamgia = dot.loaigiamgia;
+        let giatiengiam = 0;
+
+        // Quy đổi tất cả về số tiền giảm thực tế (để so sánh chính xác)
+        if (loaigiamgia === "Phần trăm") {
+          giatiengiam = (giagoc * giatrigiam) / 100;
+        } else {
+          giatiengiam = giatrigiam;
+        }
+
+        return {
+          ...dot,
+          giatrigiam,
+          giatiengiam, // 🟢 Lưu số tiền được giảm thực tế
+        };
       });
 
-    // Nếu có ít nhất 1 đợt khuyến mãi đang diễn ra
+    // 2. Nếu có ít nhất 1 đợt khuyến mãi đang diễn ra
     if (activePromotions.length > 0) {
-      // Ưu tiên chọn đợt khuyến mãi có giá trị giảm sâu nhất (hoặc đợt mới nhất)
-      const dotKhuyenMai = activePromotions[0];
-      const giatrigiam = Number(dotKhuyenMai.giatrigiam);
-      const loaigiamgia = dotKhuyenMai.loaigiamgia; // "Phần trăm" hoặc "Số tiền" / "Cố định"
-
-      let giatiengiam = 0;
-
-      if (loaigiamgia === "Phần trăm") {
-        giatiengiam = (giagoc * giatrigiam) / 100;
-      } else {
-        // Giảm theo số tiền cố định (VD: giảm 500,000đ)
-        giatiengiam = giatrigiam;
-      }
+      // 🟢 3. Tìm đợt khuyến mãi có `giatiengiam` LỚN NHẤT
+      const bestPromotion = activePromotions.reduce((best, current) => {
+        return current.giatiengiam > best.giatiengiam ? current : best;
+      }, activePromotions[0]);
 
       // Đảm bảo giá sau giảm không bị âm
-      giasaugiam = Math.max(0, giagoc - giatiengiam);
+      giasaugiam = Math.max(0, giagoc - bestPromotion.giatiengiam);
       dakhuyenmai = true;
 
       thongtinkhuyenmai = {
-        madot: dotKhuyenMai.id,
-        tendot: dotKhuyenMai.tendot,
-        loaigiamgia: loaigiamgia,
-        giatrigiam: giatrigiam,
-        sotiengiam: giatiengiam,
-        ngayketthuc: dotKhuyenMai.ngayketthuc,
+        madot: bestPromotion.id,
+        tendot: bestPromotion.tendot,
+        loaigiamgia: bestPromotion.loaigiamgia,
+        giatrigiam: bestPromotion.giatrigiam,
+        sotiengiam: bestPromotion.giatiengiam,
+        ngayketthuc: bestPromotion.ngayketthuc,
       };
     }
 
-    // Loại bỏ mảng trung gian dư thừa để JSON trả về gọn đẹp hơn
+    // Loại bỏ mảng trung gian dư thừa
     const { danhsach_chitietkhuyenmai, ...cleanBienThe } = bienThe;
 
     return {
       ...cleanBienThe,
+
       giagoc: giagoc,
       giasaugiam: giasaugiam,
       dakhuyenmai: dakhuyenmai,
       thongtinkhuyenmai: thongtinkhuyenmai,
     };
-  }
-
-  // 🔹 Lấy biến thể rẻ nhất (sau khuyến mãi) đại diện cho 1 sản phẩm
-  async findCheapestBySanPham(masanpham) {
-    // 1. Lấy tất cả biến thể của sản phẩm
-    const rawList = await prisma.bienthe.findMany({
-      where: { masanpham: masanpham },
-      include: {
-        sanpham: true,
-        ram: true,
-        rom: true,
-        mausac: true,
-        danhsach_chitietkhuyenmai: {
-          include: {
-            dotkhuyenmai: true,
-          },
-        },
-      },
-    });
-
-    if (rawList.length === 0) return null;
-
-    // 2. Tính giá sau giảm cho tất cả biến thể
-    const calculatedVariants = rawList.map((item) =>
-      this.applyPromotionToVariant(item),
-    );
-
-    // 3. Sắp xếp biến thể theo giá sau giảm tăng dần (Ascending)
-    calculatedVariants.sort((a, b) => {
-      //Nếu hàm trả về một số âm (< 0): a được xếp trước b.
-
-      // Nếu hàm trả về một số dương (> 0): b được xếp trước a.
-
-      // Nếu hàm trả về 0: Giữ nguyên vị trí tương đối giữa a và b.
-      if (a.giasaugiam !== b.giasaugiam) {
-        return a.giasaugiam - b.giasaugiam; // Ưu tiên giá sau giảm rẻ hơn
-      }
-      return a.giagoc - b.giagoc; // Nếu bằng giá sau giảm, ưu tiên giá gốc rẻ hơn
-    });
-
-    // 4. Trả về biến thể rẻ nhất (phần tử đầu tiên)
-    return calculatedVariants[0];
   }
 }
 

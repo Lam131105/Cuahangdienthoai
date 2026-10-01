@@ -3,6 +3,7 @@ const sanPham = require("../controllers/sanpham.controller");
 
 const router = express.Router();
 
+router.route("/forkhachhang").get(sanPham.findForKhachHang);
 router
   .route("/")
   .get(sanPham.findAll)

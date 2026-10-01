@@ -37,6 +37,14 @@ class AnhSanPhamService {
     const data = this.extractAnhSanPhamData(payload);
 
     try {
+      const existingCount = await client.anhsanpham.count({
+        where: { masanpham: data.masanpham },
+      });
+
+      if (existingCount === 0) {
+        // Nếu chưa có địa chỉ nào -> BẮT BUỘC là địa chỉ mặc định
+        data.laanhchinh = true;
+      }
       // Nếu ảnh mới là ảnh chính -> Hủy trạng thái ảnh chính của các ảnh cũ thuộc sản phẩm này
       if (data.laanhchinh) {
         await client.anhsanpham.updateMany({
@@ -75,6 +83,7 @@ class AnhSanPhamService {
 
     return await prisma.anhsanpham.findMany({
       where: where,
+      orderBy: { id: "desc" },
       include: {
         sanpham: true,
       },
@@ -134,6 +143,16 @@ class AnhSanPhamService {
   async findById(id) {
     return await prisma.anhsanpham.findUnique({
       where: { id: id },
+      include: {
+        sanpham: true,
+      },
+    });
+  }
+
+  async findBySanPham(masanpham) {
+    return await prisma.anhsanpham.findMany({
+      where: { masanpham: masanpham },
+      orderBy: { id: "desc" },
       include: {
         sanpham: true,
       },

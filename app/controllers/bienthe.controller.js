@@ -4,6 +4,9 @@ const ApiError = require("../api-error");
 // ============================== 1. Tạo Biến Thể mới ==================================
 exports.create = async (req, res, next) => {
   const { gia, masanpham, maram, marom, mamausac } = req.body;
+  if (req.file) {
+    req.body.duongdananh = `/uploads/bienthe/${req.file.filename}`;
+  }
 
   if (!gia || !masanpham || !maram || !marom || !mamausac) {
     return next(
@@ -64,6 +67,7 @@ exports.findAll = async (req, res, next) => {
     const documents = await bienTheService.find(filterData);
     return res.send(documents);
   } catch (error) {
+    console.error(`Lỗi khi xóa chi tiết `, error);
     return next(new ApiError(500, "Đã xảy ra lỗi khi lấy danh sách biến thể"));
   }
 };
@@ -88,6 +92,9 @@ exports.findBySanPham = async (req, res, next) => {
 exports.update = async (req, res, next) => {
   if (Object.keys(req.body).length === 0) {
     return next(new ApiError(400, "Dữ liệu cập nhật không được để trống"));
+  }
+  if (req.file) {
+    req.body.duongdananh = `/uploads/bienthe/${req.file.filename}`;
   }
 
   try {
@@ -166,31 +173,9 @@ exports.findOne = async (req, res, next) => {
     }
     return res.send(document);
   } catch (error) {
+    console.error(`Lỗi khi xóa chi tiết `, error);
     return next(
       new ApiError(500, `Lỗi khi truy vấn biến thể với mã = ${req.params.id}`),
-    );
-  }
-};
-
-// =================== Lấy Biến Thể Rẻ Nhất theo Mã Sản Phẩm =================
-exports.findCheapestBySanPham = async (req, res, next) => {
-  try {
-    const bienTheService = new BienTheService();
-    const cheapestVariant = await bienTheService.findCheapestBySanPham(
-      req.params.masanpham,
-    );
-
-    if (!cheapestVariant) {
-      return next(new ApiError(404, "Sản phẩm này chưa có biến thể nào"));
-    }
-
-    return res.send(cheapestVariant);
-  } catch (error) {
-    return next(
-      new ApiError(
-        500,
-        `Lỗi khi tìm biến thể rẻ nhất của sản phẩm mã = ${req.params.masanpham}`,
-      ),
     );
   }
 };

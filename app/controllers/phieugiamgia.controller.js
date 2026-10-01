@@ -3,46 +3,46 @@ const ApiError = require("../api-error");
 
 // ============================== 1. Tạo Phiếu Giảm Giá mới ==================================
 exports.create = async (req, res, next) => {
-  const {
-    tenphieu,
-    giatrigiam,
-    dongiatoithieu,
-    giamtoida,
-    loaigiamgia,
-    ngaybatdau,
-    ngayhethan,
-  } = req.body;
-
+  const data = { ...req.body };
+  if (req.file) {
+    data.duongdananh = `/uploads/phieugiamgia/${req.file.filename}`;
+  }
   if (
-    !tenphieu ||
-    giatrigiam === undefined ||
-    dongiatoithieu === undefined ||
-    !ngaybatdau ||
-    !ngayhethan ||
-    !loaigiamgia
+    !data.tenphieu ||
+    data.giatrigiam === undefined ||
+    data.dongiatoithieu === undefined ||
+    !data.thoihan ||
+    !data.loaigiamgia
   ) {
     return next(
       new ApiError(
         400,
-        "Tên phiếu, giá trị giảm, đơn giá tối thiểu, loại giảm giá, ngày bắt đầu và ngày hết hạn không được để trống",
+        "Tên phiếu, giá trị giảm, đơn giá tối thiểu, loại giảm giá, thoihan không được để trống",
       ),
     );
   }
-  if (loaigiamgia === "Phần trăm" && giamtoida === undefined) {
-    return next(
-      new ApiError(
-        400,
-        "Phiếu giảm theo phần trăm bắt buộc phải nhập vào giá trị giảm tối đa",
-      ),
-    );
-  }
-  if (new Date(ngaybatdau) >= new Date(ngayhethan)) {
-    return next(new ApiError(400, "Ngày bắt đầu phải nhỏ hơn ngày hết hạn"));
+  if (data.loaigiamgia === "Phần trăm") {
+    if (data.giamtoida === "") {
+      return next(
+        new ApiError(
+          400,
+          "Phiếu giảm theo phần trăm bắt buộc phải nhập vào giá trị Giảm tối đa",
+        ),
+      );
+    }
+    if (data.giatrigiam > 100) {
+      return next(
+        new ApiError(
+          400,
+          "Phiếu giảm theo phần trăm bắt buộc giá trị Giảm nhỏ hơn 100%",
+        ),
+      );
+    }
   }
 
   try {
     const phieuGiamGiaService = new PhieuGiamGiaService();
-    const document = await phieuGiamGiaService.create(req.body);
+    const document = await phieuGiamGiaService.create(data);
     return res.send({
       message: "Tạo phiếu giảm giá thành công",
       data: document,
@@ -92,22 +92,39 @@ exports.findActive = async (req, res, next) => {
 
 // ============================== 4. Cập nhật Phiếu Giảm Giá ==================================
 exports.update = async (req, res, next) => {
-  if (Object.keys(req.body).length === 0) {
+  if (Object.keys(req.body).length === 0 && !req.file) {
     return next(new ApiError(400, "Dữ liệu cập nhật không được để trống"));
   }
 
-  const { ngaybatdau, ngayhethan } = req.body;
-  if (
-    ngaybatdau &&
-    ngayhethan &&
-    new Date(ngaybatdau) >= new Date(ngayhethan)
-  ) {
-    return next(new ApiError(400, "Ngày bắt đầu phải nhỏ hơn ngày hết hạn"));
-  }
-
   try {
+    const updateData = { ...req.body };
+
+    if (req.file) {
+      updateData.duongdananh = `/uploads/phieugiamgia/${req.file.filename}`;
+    }
+    if (updateData.loaigiamgia === "Phần trăm") {
+      if (updateData.giamtoida === undefined) {
+        return next(
+          new ApiError(
+            400,
+            "Phiếu giảm theo phần trăm bắt buộc phải nhập vào Giá trị giảm tối đa",
+          ),
+        );
+      }
+      if (updateData.giatrigiam > 100) {
+        return next(
+          new ApiError(
+            400,
+            "Phiếu giảm theo phần trăm bắt buộc Giá trị giảm nhỏ hơn 100%",
+          ),
+        );
+      }
+    }
     const phieuGiamGiaService = new PhieuGiamGiaService();
-    const document = await phieuGiamGiaService.update(req.params.id, req.body);
+    const document = await phieuGiamGiaService.update(
+      req.params.id,
+      updateData,
+    );
     if (!document) {
       return next(
         new ApiError(404, "Không tìm thấy phiếu giảm giá cần cập nhật"),
@@ -137,6 +154,14 @@ exports.delete = async (req, res, next) => {
     }
     return res.send({ message: "Đã xóa phiếu giảm giá thành công" });
   } catch (error) {
+    if (error.code === "P2003") {
+      return next(
+        new ApiError(
+          400,
+          `Không thể xóa Phiếu giảm giá ${req.params.id} vì đang có khách hàng sở hữu hoặc đang nằm trong danh sách nhận thưởng!`,
+        ),
+      );
+    }
     return next(
       new ApiError(
         400,
@@ -156,6 +181,14 @@ exports.deleteAll = async (req, res, next) => {
       message: `Đã xóa thành công ${deletedCount} phiếu giảm giá khỏi hệ thống`,
     });
   } catch (error) {
+    if (error.code === "P2003") {
+      return next(
+        new ApiError(
+          400,
+          "Không thể xóa các Phiếu giảm giá này vì đang có khách hàng sở hữu hoặc đang nằm trong danh sách nhận thưởng!",
+        ),
+      );
+    }
     return next(
       new ApiError(400, "Đã xảy ra lỗi khi xóa toàn bộ phiếu giảm giá"),
     );
